@@ -52,13 +52,24 @@ public class SpotNetwork {
 	}
 
 	public ArrayList<PlaylistTrack> getPlaylistTracks(String playlistId) {
-		List<JSONObject> list = makePagedGetRequest(String.format("https://api.spotify.com/v1/playlists/%s/tracks", playlistId));
-		
+		List<JSONObject> list = makePagedGetRequest(
+				String.format("https://api.spotify.com/v1/playlists/%s/tracks", playlistId));
+
 		ArrayList<PlaylistTrack> tracks = new ArrayList<>();
 
 		list.stream().forEach(t -> tracks.add(parsePlaylistTrack(t)));
 
 		return tracks;
+	}
+
+	public ArrayList<Album> getLibrary() {
+		List<JSONObject> list = makePagedGetRequest("https://api.spotify.com/v1/me/albums");
+
+		ArrayList<Album> albums = new ArrayList<>();
+
+		list.stream().forEach(t -> albums.add(parseSimplifiedAlbum(t.getJSONObject("album"))));
+
+		return albums;
 	}
 
 	private ArrayList<JSONObject> makePagedGetRequest(String url) {
@@ -213,6 +224,17 @@ public class SpotNetwork {
 		Album album = new Album(object.getString("name"), object.getString("id"), object.getString("uri"),
 				object.getString("href"), type, artists);
 
+		try {
+			ArrayList<Track> tracks = new ArrayList<>();
+
+			object.getJSONObject("tracks").getJSONArray("items").forEach(t -> tracks.add(parseTrack((JSONObject) t)));
+
+			album.setTracks(tracks);
+
+		} catch (JSONException e) {
+			System.out.println("no tracks");
+		}
+
 		return album;
 	}
 
@@ -222,7 +244,7 @@ public class SpotNetwork {
 	}
 
 	private PlaylistTrack parsePlaylistTrack(JSONObject object) {
-		
+
 		JSONObject trackObj = object.getJSONObject("track");
 
 		Album album = parseSimplifiedAlbum(trackObj.getJSONObject("album"));
@@ -238,8 +260,35 @@ public class SpotNetwork {
 
 		PlaylistTrack track = new PlaylistTrack(trackObj.getString("name"), trackObj.getString("id"),
 				trackObj.getString("uri"), trackObj.getString("href"), album,
-				LocalDateTime.ofInstant(Instant.parse(object.getString("added_at")), ZoneId.systemDefault()), parseUser(object.getJSONObject("added_by")),
-				trackObj.getBoolean("is_local"), artists);
+				LocalDateTime.ofInstant(Instant.parse(object.getString("added_at")), ZoneId.systemDefault()),
+				parseUser(object.getJSONObject("added_by")), trackObj.getBoolean("is_local"), artists);
+
+		return track;
+	}
+
+	private Track parseTrack(JSONObject object) {
+
+		JSONObject trackObj = object.getJSONObject("track");
+
+		Album album = null;
+
+		try {
+			album = parseSimplifiedAlbum(trackObj.getJSONObject("album"));
+		} catch (JSONException e) {
+			System.out.println("no album");
+
+		}
+		ArrayList<Artist> artists = new ArrayList<>();
+
+		JSONArray artistObj = trackObj.getJSONArray("artists");
+
+		for (Object i : artistObj) {
+			JSONObject artist = (JSONObject) i;
+			artists.add(parseSimplifiedArtist(artist));
+		}
+
+		Track track = new Track(trackObj.getString("name"), trackObj.getString("id"), trackObj.getString("uri"),
+				trackObj.getString("href"), album, artists);
 
 		return track;
 	}
